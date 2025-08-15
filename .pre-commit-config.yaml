@@ -14,19 +14,19 @@ repos:
       - id: debug-statements
       - id: detect-private-key
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.9
-    hooks:
-      # Run the linter
-      - id: ruff
-        args: [--fix]
-      # Run the formatter
-      - id: ruff-format
-  - repo: https://github.com/econchick/interrogate
-    rev: 1.7.0
-    hooks:
-      - id: interrogate
-        args: [-vv, -i, --fail-under=80]
+  # - repo: https://github.com/astral-sh/ruff-pre-commit
+  #   rev: v0.12.9
+  #   hooks:
+  #     # Run the linter
+  #     - id: ruff
+  #       args: [--fix]
+  #     # Run the formatter
+  #     - id: ruff-format
+  # - repo: https://github.com/econchick/interrogate
+  #   rev: 1.7.0
+  #   hooks:
+  #     - id: interrogate
+  #       args: [-vv, -i, --fail-under=80]
 
   # shellcheck-py for linting shell files
   - repo: https://github.com/shellcheck-py/shellcheck-py

@@ -3,8 +3,10 @@ from torch.utils.data import Dataset
 
 
 class BilingualDataset(Dataset):
+    """A dataset for bilingual text pairs, suitable for training sequence-to-sequence models."""
 
     def __init__(self, ds, tokenizer_src, tokenizer_tgt, src_lang, tgt_lang, seq_len):
+        """Initialize the BilingualDataset."""
         super().__init__()
         # Initialize the dataset with source and target languages,
         # tokenizers, and sequence length
@@ -82,10 +84,7 @@ class BilingualDataset(Dataset):
         return {
             "encoder_input": encoder_input,  # (seq_len)
             "decoder_input": decoder_input,  # (seq_len)
-            "encoder_mask": (encoder_input != self.pad_token)
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .int(),  # (1, 1, seq_len)
+            "encoder_mask": (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int(),  # (1, 1, seq_len)
             "decoder_mask": (decoder_input != self.pad_token).unsqueeze(0).int()
             & causal_mask(decoder_input.size(0)),  # (1, seq_len) & (1, seq_len, seq_len),
             "label": label,  # (seq_len)
