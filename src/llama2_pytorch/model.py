@@ -1,6 +1,6 @@
-from dataclasses import dataclass
-from typing import Optional
 import math
+from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,10 +11,10 @@ class ModelArgs:
     dim: int = 4096
     n_layers: int = 32
     n_heads: int = 32
-    n_kv_heads: Optional[int] = None
-    vocab_size: int = -1 # Later set in the build method
+    n_kv_heads: int | None = None
+    vocab_size: int = -1  # Later set in the build method
     multiple_of: int = 256
-    ffn_dim_multiplier: Optional[float] = None
+    ffn_dim_multiplier: float | None = None
     norm_eps: float = 1e-5
 
     # Needed for KV cache
@@ -41,7 +41,9 @@ class RMSNorm(nn.Module):
         return self.weight * self._norm(x.float()).type_as(x)
 
 
-def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, theta: float = 10000.0):
+def precompute_theta_pos_frequencies(
+    head_dim: int, seq_len: int, device: str, theta: float = 10000.0
+):
     # As written in the paragraph 3.2.2 of the paper
     # >> In order to generalize our results in 2D to any xi ∈ Rd where **d is even**, [...]
     assert head_dim % 2 == 0, "Dimension must be divisible by 2"
@@ -50,7 +52,7 @@ def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, t
     # Shape: (Head_Dim / 2)
     theta_numerator = torch.arange(0, head_dim, 2).float()
     # Shape: (Head_Dim / 2)
-    theta = 1.0 / (theta ** (theta_numerator / head_dim)).to(device) # (Dim / 2)
+    theta = 1.0 / (theta ** (theta_numerator / head_dim)).to(device)  # (Dim / 2)
     # Construct the positions (the "m" parameter)
     # Shape: (Seq_Len)
     m = torch.arange(seq_len, device=device)
@@ -61,6 +63,7 @@ def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, t
     # (Seq_Len, Head_Dim / 2) -> (Seq_Len, Head_Dim / 2)
     freqs_complex = torch.polar(torch.ones_like(freqs), freqs)
     return freqs_complex
+
 
 def apply_rotary_embeddings(x: torch.Tensor, freqs_complex: torch.Tensor, device: str):
     # Separate the last dimension pairs of two values, representing the real and imaginary parts of the complex number
@@ -114,15 +117,14 @@ class SelfAttention(nn.Module):
         self.wv = nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=False)
         self.wo = nn.Linear(args.n_heads * self.head_dim, args.dim, bias=False)
 
-        self.cache_k = torch.zeros((args.max_batch_size, args.max_seq_len, self.n_kv_heads, self.head_dim))
-        self.cache_v = torch.zeros((args.max_batch_size, args.max_seq_len, self.n_kv_heads, self.head_dim))
+        self.cache_k = torch.zeros(
+            (args.max_batch_size, args.max_seq_len, self.n_kv_heads, self.head_dim)
+        )
+        self.cache_v = torch.zeros(
+            (args.max_batch_size, args.max_seq_len, self.n_kv_heads, self.head_dim)
+        )
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        start_pos: int,
-        freqs_complex: torch.Tensor
-    ):
+    def forward(self, x: torch.Tensor, start_pos: int, freqs_complex: torch.Tensor):
         batch_size, seq_len, _ = x.shape  # (B, 1, Dim)
 
         # (B, 1, Dim) -> (B, 1, H_Q * Head_Dim)
@@ -175,15 +177,12 @@ class SelfAttention(nn.Module):
         # (B, H_Q, 1, Seq_Len) @ (B, H_Q, Seq_Len_KV, Head_Dim) -> (B, H_Q, 1, Head_Dim)
         output = torch.matmul(scores, values)
         # (B, H_Q, 1, Head_Dim) -> (B, 1, H_Q, Head_Dim) -> (B, 1, Dim)
-        output = (output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1))
-        return self.wo(output) # (B, 1, Dim) -> (B, 1, Dim)
+        output = output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
+        return self.wo(output)  # (B, 1, Dim) -> (B, 1, Dim)
 
 
 class FeedForward(nn.Module):
-    def __init__(
-        self,
-        args: ModelArgs
-    ):
+    def __init__(self, args: ModelArgs):
         super().__init__()
 
         hidden_dim = 4 * args.dim
@@ -191,7 +190,9 @@ class FeedForward(nn.Module):
         if args.ffn_dim_multiplier is not None:
             hidden_dim = int(args.ffn_dim_multiplier * hidden_dim)
         # Round the hidden_dim to the nearest multiple of the multiple_of parameter
-        hidden_dim = args.multiple_of * ((hidden_dim + args.multiple_of - 1) // args.multiple_of)
+        hidden_dim = args.multiple_of * (
+            (hidden_dim + args.multiple_of - 1) // args.multiple_of
+        )
 
         self.w1 = nn.Linear(args.dim, hidden_dim, bias=False)
         self.w2 = nn.Linear(hidden_dim, args.dim, bias=False)
@@ -210,7 +211,6 @@ class FeedForward(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-
     def __init__(self, args: ModelArgs):
         super().__init__()
 
@@ -228,15 +228,13 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, start_pos: int, freqs_complex: torch.Tensor):
         # (B, Seq_Len, Dim) + (B, Seq_Len, Dim) --> (B, Seq_Len, Dim)
-        h = x + self.attention.forward(
-            self.attention_norm(x), start_pos, freqs_complex
-        )
+        h = x + self.attention.forward(self.attention_norm(x), start_pos, freqs_complex)
         # (B, Seq_Len, Dim) + (B, Seq_Len, Dim) --> (B, Seq_Len, Dim)
         out = h + self.feed_forward.forward(self.ffn_norm(h))
         return out
 
-class Transformer(nn.Module):
 
+class Transformer(nn.Module):
     def __init__(self, args: ModelArgs):
         super().__init__()
 
@@ -254,7 +252,11 @@ class Transformer(nn.Module):
         self.norm = RMSNorm(args.dim, eps=args.norm_eps)
         self.output = nn.Linear(args.dim, self.vocab_size, bias=False)
 
-        self.freqs_complex = precompute_theta_pos_frequencies(self.args.dim // self.args.n_heads, self.args.max_seq_len * 2, device=self.args.device)
+        self.freqs_complex = precompute_theta_pos_frequencies(
+            self.args.dim // self.args.n_heads,
+            self.args.max_seq_len * 2,
+            device=self.args.device,
+        )
 
     def forward(self, tokens: torch.Tensor, start_pos: int):
         # (B, Seq_Len)
@@ -265,7 +267,7 @@ class Transformer(nn.Module):
         h = self.tok_embeddings(tokens)
 
         # Retrieve the pairs (m, theta) corresponding to the positions [start_pos, start_pos + seq_len]
-        freqs_complex = self.freqs_complex[start_pos:start_pos + seq_len]
+        freqs_complex = self.freqs_complex[start_pos : start_pos + seq_len]
 
         # Consecutively apply all the encoder layers
         for layer in self.layers:

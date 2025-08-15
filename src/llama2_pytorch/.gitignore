@@ -163,3 +163,4 @@ cython_debug/
 llama-2-*
 tokenizer.model
 sampling_tests.ipynb
+tokenizer*
