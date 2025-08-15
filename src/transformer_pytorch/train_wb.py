@@ -20,7 +20,9 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 
-def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
+def greedy_decode(
+    model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device
+):
     sos_idx = tokenizer_tgt.token_to_id("[SOS]")
     eos_idx = tokenizer_tgt.token_to_id("[EOS]")
 
@@ -33,7 +35,9 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
             break
 
         # build mask for target
-        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
+        decoder_mask = (
+            causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
+        )
 
         # calculate output
         out = model.decode(encoder_output, source_mask, decoder_input, decoder_mask)
@@ -147,7 +151,9 @@ def get_or_build_tokenizer(config, ds, lang):
         # Most code taken from: https://huggingface.co/docs/tokenizers/quicktour
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
+        trainer = WordLevelTrainer(
+            special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2
+        )
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -157,7 +163,9 @@ def get_or_build_tokenizer(config, ds, lang):
 
 def get_ds(config):
     # It only has the train split, so we divide it overselves
-    ds_raw = load_dataset("opus_books", f"{config['lang_src']}-{config['lang_tgt']}", split="train")
+    ds_raw = load_dataset(
+        "opus_books", f"{config['lang_src']}-{config['lang_tgt']}", split="train"
+    )
 
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["lang_src"])
@@ -198,7 +206,9 @@ def get_ds(config):
     print(f"Max length of source sentence: {max_len_src}")
     print(f"Max length of target sentence: {max_len_tgt}")
 
-    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True)
+    train_dataloader = DataLoader(
+        train_ds, batch_size=config["batch_size"], shuffle=True
+    )
     val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
@@ -224,7 +234,9 @@ def train_model(config):
     Path(config["model_folder"]).mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model = get_model(
+        config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()
+    ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], eps=1e-9)
 
@@ -241,7 +253,9 @@ def train_model(config):
         global_step = state["global_step"]
         del state
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
+    loss_fn = nn.CrossEntropyLoss(
+        ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1
+    ).to(device)
 
     # define our custom x axis metric
     wandb.define_metric("global_step")
@@ -260,7 +274,9 @@ def train_model(config):
             decoder_mask = batch["decoder_mask"].to(device)  # (B, 1, seq_len, seq_len)
 
             # Run the tensors through the encoder, decoder and the projection layer
-            encoder_output = model.encode(encoder_input, encoder_mask)  # (B, seq_len, d_model)
+            encoder_output = model.encode(
+                encoder_input, encoder_mask
+            )  # (B, seq_len, d_model)
             decoder_output = model.decode(
                 encoder_output, encoder_mask, decoder_input, decoder_mask
             )  # (B, seq_len, d_model)
@@ -270,7 +286,9 @@ def train_model(config):
             label = batch["label"].to(device)  # (B, seq_len)
 
             # Compute the loss using a simple cross entropy
-            loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1))
+            loss = loss_fn(
+                proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1)
+            )
             batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
 
             # Log the loss

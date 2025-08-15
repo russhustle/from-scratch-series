@@ -41,7 +41,9 @@ def get_or_build_tokenizer(config, ds, lang):
         # Most code taken from: https://huggingface.co/docs/tokenizers/quicktour
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
+        trainer = WordLevelTrainer(
+            special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2
+        )
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -96,7 +98,9 @@ def get_ds(config):
     print(f"Max length of source sentence: {max_len_src}")
     print(f"Max length of target sentence: {max_len_tgt}")
 
-    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True)
+    train_dataloader = DataLoader(
+        train_ds, batch_size=config["batch_size"], shuffle=True
+    )
     val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
@@ -113,7 +117,9 @@ def get_model(config: dict, vocab_src_len: int, vocab_tgt_len: int):
     return model
 
 
-def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
+def greedy_decode(
+    model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device
+):
     sos_idx = tokenizer_tgt.token_to_id("[SOS]")
     eos_idx = tokenizer_tgt.token_to_id("[EOS]")
 
@@ -126,7 +132,9 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
             break
 
         # build mask for target
-        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
+        decoder_mask = (
+            causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
+        )
 
         # calculate output
         out = model.decode(encoder_output, source_mask, decoder_input, decoder_mask)
@@ -237,12 +245,18 @@ def run_validation(
 def train_model(config):
     # Define the device
     device = (
-        "cuda" if torch.cuda.is_available() else "mps" if torch.has_mps or torch.backends.mps.is_available() else "cpu"
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.has_mps or torch.backends.mps.is_available()
+        else "cpu"
     )
     print("Using device:", device)
     if device == "cuda":
         print(f"Device name: {torch.cuda.get_device_name(device.index)}")
-        print(f"Device memory: {torch.cuda.get_device_properties(device.index).total_memory / 1024**3} GB")
+        print(
+            f"Device memory: {torch.cuda.get_device_properties(device.index).total_memory / 1024**3} GB"
+        )
     elif device == "mps":
         print("Device name: <mps>")
     else:
@@ -256,10 +270,14 @@ def train_model(config):
     device = torch.device(device)
 
     # Make sure the weights folder exists
-    Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
+    Path(f"{config['datasource']}_{config['model_folder']}").mkdir(
+        parents=True, exist_ok=True
+    )
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model = get_model(
+        config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()
+    ).to(device)
     # Tensorboard
     writer = SummaryWriter(config["experiment_name"])
 
@@ -286,7 +304,9 @@ def train_model(config):
     else:
         print("No model to preload, starting from scratch")
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
+    loss_fn = nn.CrossEntropyLoss(
+        ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1
+    ).to(device)
 
     for epoch in range(initial_epoch, config["num_epochs"]):
         torch.cuda.empty_cache()
@@ -299,7 +319,9 @@ def train_model(config):
             decoder_mask = batch["decoder_mask"].to(device)  # (B, 1, seq_len, seq_len)
 
             # Run the tensors through the encoder, decoder and the projection layer
-            encoder_output = model.encode(encoder_input, encoder_mask)  # (B, seq_len, d_model)
+            encoder_output = model.encode(
+                encoder_input, encoder_mask
+            )  # (B, seq_len, d_model)
             decoder_output = model.decode(
                 encoder_output, encoder_mask, decoder_input, decoder_mask
             )  # (B, seq_len, d_model)
@@ -310,7 +332,9 @@ def train_model(config):
 
             # Compute the loss using a simple cross entropy
             # (B, seq_len, tgt_vocab_size) -> (B * seq_len, tgt_vocab_size)
-            loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1))
+            loss = loss_fn(
+                proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1)
+            )
             batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
 
             # Log the loss

@@ -14,8 +14,12 @@ def translate(sentence: str):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
     config = get_config()
-    tokenizer_src = Tokenizer.from_file(str(Path(config["tokenizer_file"].format(config["lang_src"]))))
-    tokenizer_tgt = Tokenizer.from_file(str(Path(config["tokenizer_file"].format(config["lang_tgt"]))))
+    tokenizer_src = Tokenizer.from_file(
+        str(Path(config["tokenizer_file"].format(config["lang_src"])))
+    )
+    tokenizer_tgt = Tokenizer.from_file(
+        str(Path(config["tokenizer_file"].format(config["lang_tgt"])))
+    )
     model = build_transformer(
         tokenizer_src.get_vocab_size(),
         tokenizer_tgt.get_vocab_size(),
@@ -61,17 +65,29 @@ def translate(sentence: str):
                 torch.tensor(source.ids, dtype=torch.int64),
                 torch.tensor([tokenizer_src.token_to_id("[EOS]")], dtype=torch.int64),
                 torch.tensor(
-                    [tokenizer_src.token_to_id("[PAD]")] * (seq_len - len(source.ids) - 2),
+                    [tokenizer_src.token_to_id("[PAD]")]
+                    * (seq_len - len(source.ids) - 2),
                     dtype=torch.int64,
                 ),
             ],
             dim=0,
         ).to(device)
-        source_mask = (source != tokenizer_src.token_to_id("[PAD]")).unsqueeze(0).unsqueeze(0).int().to(device)
+        source_mask = (
+            (source != tokenizer_src.token_to_id("[PAD]"))
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .int()
+            .to(device)
+        )
         encoder_output = model.encode(source, source_mask)
 
         # Initialize the decoder input with the sos token
-        decoder_input = torch.empty(1, 1).fill_(tokenizer_tgt.token_to_id("[SOS]")).type_as(source).to(device)
+        decoder_input = (
+            torch.empty(1, 1)
+            .fill_(tokenizer_tgt.token_to_id("[SOS]"))
+            .type_as(source)
+            .to(device)
+        )
 
         # Print the source sentence and target start prompt
         if label != "":
@@ -101,7 +117,10 @@ def translate(sentence: str):
             decoder_input = torch.cat(
                 [
                     decoder_input,
-                    torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device),
+                    torch.empty(1, 1)
+                    .type_as(source)
+                    .fill_(next_word.item())
+                    .to(device),
                 ],
                 dim=1,
             )

@@ -19,9 +19,15 @@ class BilingualDataset(Dataset):
 
         # Define special tokens
         # sos: start, eos: end, pad: padding
-        self.sos_token = torch.tensor([tokenizer_tgt.token_to_id("[SOS]")], dtype=torch.int64)
-        self.eos_token = torch.tensor([tokenizer_tgt.token_to_id("[EOS]")], dtype=torch.int64)
-        self.pad_token = torch.tensor([tokenizer_tgt.token_to_id("[PAD]")], dtype=torch.int64)
+        self.sos_token = torch.tensor(
+            [tokenizer_tgt.token_to_id("[SOS]")], dtype=torch.int64
+        )
+        self.eos_token = torch.tensor(
+            [tokenizer_tgt.token_to_id("[EOS]")], dtype=torch.int64
+        )
+        self.pad_token = torch.tensor(
+            [tokenizer_tgt.token_to_id("[PAD]")], dtype=torch.int64
+        )
 
     def __len__(self):
         return len(self.ds)
@@ -51,7 +57,9 @@ class BilingualDataset(Dataset):
                 self.sos_token,
                 torch.tensor(enc_input_tokens, dtype=torch.int64),
                 self.eos_token,
-                torch.tensor([self.pad_token] * enc_num_padding_tokens, dtype=torch.int64),
+                torch.tensor(
+                    [self.pad_token] * enc_num_padding_tokens, dtype=torch.int64
+                ),
             ],
             dim=0,
         )
@@ -61,7 +69,9 @@ class BilingualDataset(Dataset):
             [
                 self.sos_token,
                 torch.tensor(dec_input_tokens, dtype=torch.int64),
-                torch.tensor([self.pad_token] * dec_num_padding_tokens, dtype=torch.int64),
+                torch.tensor(
+                    [self.pad_token] * dec_num_padding_tokens, dtype=torch.int64
+                ),
             ],
             dim=0,
         )
@@ -71,7 +81,9 @@ class BilingualDataset(Dataset):
             [
                 torch.tensor(dec_input_tokens, dtype=torch.int64),
                 self.eos_token,
-                torch.tensor([self.pad_token] * dec_num_padding_tokens, dtype=torch.int64),
+                torch.tensor(
+                    [self.pad_token] * dec_num_padding_tokens, dtype=torch.int64
+                ),
             ],
             dim=0,
         )
@@ -84,9 +96,14 @@ class BilingualDataset(Dataset):
         return {
             "encoder_input": encoder_input,  # (seq_len)
             "decoder_input": decoder_input,  # (seq_len)
-            "encoder_mask": (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int(),  # (1, 1, seq_len)
+            "encoder_mask": (encoder_input != self.pad_token)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .int(),  # (1, 1, seq_len)
             "decoder_mask": (decoder_input != self.pad_token).unsqueeze(0).int()
-            & causal_mask(decoder_input.size(0)),  # (1, seq_len) & (1, seq_len, seq_len),
+            & causal_mask(
+                decoder_input.size(0)
+            ),  # (1, seq_len) & (1, seq_len, seq_len),
             "label": label,  # (seq_len)
             "src_text": src_text,
             "tgt_text": tgt_text,
